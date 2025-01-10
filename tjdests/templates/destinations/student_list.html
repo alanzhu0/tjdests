@@ -3,19 +3,39 @@
 {% load bootstrap_pagination %}
 {% load markdown %}
 
+{% load crispy_forms_tags %}
+
 {% block content %}
+    <!-- Filter Statement -->
     <h2>Student Destinations</h2>
 
     <p><b>Note</b>: All data is self-reported. We do not make any claim as to the accuracy of this data.</p>
 
-    {% if college or search_query %}
+    {% if college or search_query or GPA_MIN != '0' or GPA_MAX != '5' or SAT_MIN != '0' or SAT_MAX != '1600' or ACT_MIN != '0' or ACT_MAX != '36' or SELECTED_TEST_SCORES %}
         <p>
-            Only showing students {% if college %}reporting applications to {{ college }}
-            {% if search_query %}and {% endif %}{% endif %}{% if search_query %}matching {{ search_query }}{% endif %}.
-            Navigate <a href="{% url "destinations:students" %}">here</a> to reset.
+            Only showing students 
+            {% if college %}
+                reporting applications to {{ college.name }} 
+                {% if DECISION %} {{ DECISION }} {% endif %}
+                {% if ADMISSION %} - Admissions: {{ ADMISSION }}{% endif %}
+            {% endif %}
+            {% if search_query %}
+                matching "{{ search_query }}"
+            {% endif %}
+            {% if GPA_MIN != '0' or GPA_MAX != '5' %}
+                with GPA from {{ GPA_MIN }} to {{ GPA_MAX }}
+            {% endif %}
+            {% if SAT_MIN != '0' or SAT_MAX != '1600' %}
+                with SAT scores from {{ SAT_MIN }} to {{ SAT_MAX }}
+            {% endif %}
+            {% if ACT_MIN != '0' or ACT_MAX != '36' %}
+                with ACT scores from {{ ACT_MIN }} to {{ ACT_MAX }}
+            {% endif %}
+            . Navigate <a href="{% url 'destinations:students' %}">here</a> to reset.
         </p>
     {% endif %}
-
+    
+    <!-- Search bar -->
     <div class="container pb-3">
         <form method="get">
             <div class="form-floating mb-3">
@@ -26,6 +46,31 @@
                 </div>
             </div>
         </form>
+    </div>
+    
+    <!-- Filtering -->
+    <div class="container pb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5>Filter Options</h5>
+            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#filterBar" aria-expanded="false" aria-controls="filterBar">
+                <i class="fas fa-filter"></i> Toggle Filters
+            </button>
+        </div>
+    
+        <!-- Collapsible Filter Bar -->
+        <div class="collapse pb-3" id="filterBar">
+            <form method="get" class="border p-3 rounded bg-light">
+                <div class="row g-3">
+                    {% csrf_token %}
+                    {{ form|crispy }} 
+                </div>
+                <div class="d-flex justify-content-end mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search"></i> Apply Filters
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div class="row py-3">
