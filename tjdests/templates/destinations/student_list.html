@@ -19,9 +19,6 @@
                 {% if DECISION %} {{ DECISION }} {% endif %}
                 {% if ADMISSION %} - Admissions: {{ ADMISSION }}{% endif %}
             {% endif %}
-            {% if search_query %}
-                matching "{{ search_query }}"
-            {% endif %}
             {% if GPA_MIN != '0' or GPA_MAX != '5' %}
                 with GPA from {{ GPA_MIN }} to {{ GPA_MAX }}
             {% endif %}
@@ -31,7 +28,10 @@
             {% if ACT_MIN != '0' or ACT_MAX != '36' %}
                 with ACT scores from {{ ACT_MIN }} to {{ ACT_MAX }}
             {% endif %}
-            . Navigate <a href="{% url 'destinations:students' %}">here</a> to reset.
+            {% if search_query %}
+                matching "{{ search_query }}"
+            {% endif %}. 
+            Navigate <a href="{% url 'destinations:students' %}">here</a> to reset.
         </p>
     {% endif %}
     
@@ -45,7 +45,6 @@
                     <input type="search" name="q" placeholder="Search" id="search" data-toggle="tooltip" data-bs-placement="bottom" title="Filter by first name, last name, and biography" aria-label="Search" class="form-control" value="{{ search_query }}">
                 </div>
             </div>
-        </form>
     </div>
     
     <!-- Filtering -->
@@ -59,7 +58,7 @@
     
         <!-- Collapsible Filter Bar -->
         <div class="collapse pb-3" id="filterBar">
-            <form method="get" class="border p-3 rounded bg-light">
+            <div class="border p-3 rounded bg-light">
                 <div class="row g-3">
                     {% csrf_token %}
                     {{ form|crispy }} 

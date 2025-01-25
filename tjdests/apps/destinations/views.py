@@ -1,5 +1,3 @@
-from typing import Optional
-
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Q, QuerySet
@@ -8,9 +6,8 @@ from django.shortcuts import get_object_or_404
 from django.views.generic import ListView
 
 from ..authentication.models import User
-from .models import College, Decision, TestScore
+from .models import College, Decision
 from .forms import FilterForm
-from django.shortcuts import render
 
 class StudentDestinationListView(
     LoginRequiredMixin, UserPassesTestMixin, ListView
@@ -20,7 +17,6 @@ class StudentDestinationListView(
     
     def get_queryset(self):
         # Superusers can use the "all" GET parameter to see all data
-        print(self.request.GET) 
         form = FilterForm(self.request.GET or None)
         
         # Getting Queryset  
@@ -32,14 +28,21 @@ class StudentDestinationListView(
         else:
             queryset = User.objects.filter(publish_data=True)
 
-        queryset = queryset.filter(is_senior=True).order_by(
-            "last_name", "preferred_name"
-        )
+        queryset = queryset.filter(is_senior=True)
+
+        search_query = self.request.GET.get("q", None)
+        if search_query is not None:
+            queryset = queryset.filter(
+                Q(first_name__icontains=search_query)
+                | Q(last_name__icontains=search_query)
+                | Q(nickname__icontains=search_query)
+                | Q(biography__icontains=search_query)
+            )
 
         #  Populate the form dynamically
         colleges = College.objects.all()
         decisions = Decision.DECISION_TYPE_CHOICES
-        admissions = Decision.ADMIT_TYPE_CHOICES
+        admissions = [("ATTEND", "Attending")] + Decision.ADMIT_TYPE_CHOICES
         form = FilterForm(self.request.GET or None)
         form.fields['college'].choices = [("", "Select a College")] + [(college.id, f"{college.name} - {college.location}") for college in colleges]
         form.fields['decision'].choices = decisions
@@ -53,14 +56,17 @@ class StudentDestinationListView(
             if data['gpa_max']:
                 queryset = queryset.filter(GPA__lte=data['gpa_max'])
             if data['college']:
-                queryset = queryset.filter(decision__college__id=data['college'])
+                college_filter = Q(decision__college__id=data['college'])
                 if data['decision']:
                     decisions = self.request.GET.getlist('decision')
-                    print(decisions)
-                    queryset = queryset.filter(decision__decision_type__in=decisions)
+                    college_filter &= Q(decision__decision_type__in=decisions)
                 if data['admission']:
                     admissions = self.request.GET.getlist('admission')
-                    queryset = queryset.filter(decision__admission_status__in=admissions).distinct()
+                    if "ATTEND" in admissions:
+                        college_filter &= Q(attending_decision__college__id=data['college']) | Q(decision__admission_status__in=admissions)
+                    else:
+                        college_filter &= Q(decision__admission_status__in=admissions)
+                queryset = queryset.filter(college_filter)
             # SAT Filters
             sat_min = self.request.GET.get("sat_min", '').strip()
             sat_max = self.request.GET.get("sat_max", '').strip()
@@ -100,20 +106,20 @@ class StudentDestinationListView(
                 if act_max:
                     act_filter &= Q(testscore__exam_score__lte=act_max)
                 queryset = queryset.filter(act_filter)
+        
+        queryset.order_by("last_name", "preferred_name")
 
-        print(queryset)
         return queryset
 
     def get_context_data(
         self, *, object_list=None, **kwargs
     ):  # pylint: disable=unused-argument
         context = super().get_context_data(**kwargs)
-
     
         # Fetch dynamic choices
         colleges = College.objects.all()
         decisions = Decision.DECISION_TYPE_CHOICES
-        admissions = Decision.ADMIT_TYPE_CHOICES
+        admissions = [("ATTEND", "Attending")] + Decision.ADMIT_TYPE_CHOICES
 
         # Populate the form dynamically
         form = FilterForm(self.request.GET or None)
@@ -121,30 +127,25 @@ class StudentDestinationListView(
         form.fields['decision'].choices = decisions
         form.fields['admission'].choices = admissions
 
-        context['form'] = form
         college_id = self.request.GET.get("college", None)
-        context["college"] = (
-            get_object_or_404(College, id=college_id) if college_id else None
-        )
+        context |= {
+            "form": form,
+            "college": get_object_or_404(College, id=college_id) if college_id else None,
+            "DECISION": ', '.join(self.request.GET.getlist("decision", [])),
+            "ADMISSION": ', '.join(self.request.GET.getlist("admission", [])),
+            "search_query": self.request.GET.get("q", ""),
+            "GPA_MIN": self.request.GET.get("gpa_min", "0") or "0",
+            "GPA_MAX": self.request.GET.get("gpa_max", "5") or "5",
+            "SAT_MIN": self.request.GET.get("sat_min", "0") or "0",
+            "SAT_MAX": self.request.GET.get("sat_max", "1600") or "1600",
+            "ACT_MIN": self.request.GET.get("act_min", "0") or "0",
+            "ACT_MAX": self.request.GET.get("act_max", "36") or "36",
+            "COLLEGES": colleges,
+            "DECISIONS": decisions,
+            "ADMISSIONS": admissions,
+        }
 
-        # Sending Context for Filter Message
-        context["DECISION"] = ', '.join(self.request.GET.getlist("decision", []))
-        context["ADMISSION"] = ', '.join(self.request.GET.getlist("admission", []))
-        context["search_query"] = self.request.GET.get("q", None)
-        
-        context["GPA_MIN"] = self.request.GET.get("gpa_min", "0") or "0"
-        context["GPA_MAX"] = self.request.GET.get("gpa_max", "5") or "5"
-        context["SAT_MIN"] = self.request.GET.get("sat_min", "0") or "0"
-        context["SAT_MAX"] = self.request.GET.get("sat_max", "1600") or "1600"
-        context["ACT_MIN"] = self.request.GET.get("act_min", "0") or "0"
-        context["ACT_MAX"] = self.request.GET.get("act_max", "36") or "36"
- 
-        context['COLLEGES'] = College.objects.all()
-        context['DECISIONS'] = Decision.DECISION_TYPE_CHOICES
-        context['ADMISSIONS'] = Decision.ADMIT_TYPE_CHOICES
         return context
-    
-    
 
     def test_func(self):
         assert self.request.user.is_authenticated
