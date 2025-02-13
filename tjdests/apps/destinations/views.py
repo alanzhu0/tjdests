@@ -107,9 +107,7 @@ class StudentDestinationListView(
                     act_filter &= Q(testscore__exam_score__lte=act_max)
                 queryset = queryset.filter(act_filter)
         
-        queryset.order_by("last_name", "preferred_name")
-
-        return queryset
+        return queryset.order_by("last_name", "preferred_name")
 
     def get_context_data(
         self, *, object_list=None, **kwargs
